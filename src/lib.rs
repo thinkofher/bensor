@@ -189,19 +189,18 @@ pub mod parser {
 
     fn parse_token(t: Token, tokens: &mut Vec<Token>) -> Option<Bencode> {
         match t {
-            Token::Dictionary => parse_dict(tokens, HashMap::new()),
-            Token::List => parse_list(tokens, Vec::new()),
+            Token::Dictionary => parse_dict(tokens, &mut HashMap::new()),
+            Token::List => parse_list(tokens, &mut Vec::new()),
             Token::Integer(val) => Bencode::Integer(val).into(),
             Token::ByteString(val) => Bencode::ByteString(val).into(),
             _ => None,
         }
     }
 
-    fn parse_list(tokens: &mut Vec<Token>, list: Vec<Bencode>) -> Option<Bencode> {
+    fn parse_list(tokens: &mut Vec<Token>, list: &mut Vec<Bencode>) -> Option<Bencode> {
         match tokens.pop() {
-            Some(Token::End) => Bencode::List(list).into(),
+            Some(Token::End) => Bencode::List(list.clone()).into(),
             Some(token) => {
-                let mut list = list;
                 list.push(parse_token(token, tokens)?);
                 parse_list(tokens, list)
             }
@@ -209,22 +208,16 @@ pub mod parser {
         }
     }
 
-    fn parse_dict(tokens: &mut Vec<Token>, dict: HashMap<String, Bencode>) -> Option<Bencode> {
-        let key = match tokens.pop() {
-            Some(Token::ByteString(key)) => key,
-            Some(Token::End) => return Bencode::Dictionary(dict).into(),
+    fn parse_dict(tokens: &mut Vec<Token>, dict: &mut HashMap<String, Bencode>) -> Option<Bencode> {
+        match tokens.pop() {
+            Some(Token::ByteString(key)) => {
+                let val = parse_token(tokens.pop()?, tokens)?;
+                dict.insert(key, val);
+                parse_dict(tokens, dict)
+            }
+            Some(Token::End) => return Bencode::Dictionary(dict.clone()).into(),
             _ => return None,
-        };
-
-        let val = match tokens.pop() {
-            Some(token) => parse_token(token, tokens)?,
-            None => return None,
-        };
-
-        let mut dict = dict;
-        dict.insert(key, val);
-
-        parse_dict(tokens, dict)
+        }
     }
 
     #[cfg(test)]
