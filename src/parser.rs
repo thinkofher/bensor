@@ -101,9 +101,12 @@ mod tests {
         ];
         let left = parse(tokens).unwrap();
 
-        let mut dict = HashMap::new();
-        dict.insert("bar".into(), Bencode::ByteString("spam".into()));
-        dict.insert("foo".into(), Bencode::Integer(42));
+        let dict = {
+            let mut dict = HashMap::new();
+            dict.insert("bar".into(), Bencode::ByteString("spam".into()));
+            dict.insert("foo".into(), Bencode::Integer(42));
+            dict
+        };
         let right = Bencode::Dictionary(dict);
 
         assert_eq!(left, right);
@@ -124,11 +127,16 @@ mod tests {
         ];
         let left = parse(tokens).unwrap();
 
-        let mut dict = HashMap::new();
-        dict.insert("bar".into(), Bencode::ByteString("spam".into()));
-        let mut nested_dict = HashMap::new();
-        nested_dict.insert("nested".into(), Bencode::Integer(-123));
-        dict.insert("foo".into(), Bencode::Dictionary(nested_dict));
+        let dict = {
+            let mut dict = HashMap::new();
+            dict.insert("bar".into(), Bencode::ByteString("spam".into()));
+
+            let mut nested_dict = HashMap::new();
+            nested_dict.insert("nested".into(), Bencode::Integer(-123));
+
+            dict.insert("foo".into(), Bencode::Dictionary(nested_dict));
+            dict
+        };
 
         let right = Bencode::Dictionary(dict);
         assert_eq!(left, right);

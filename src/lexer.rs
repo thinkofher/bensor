@@ -32,10 +32,13 @@ pub fn parse(slice: &[u8]) -> Vec<Token> {
 fn calc_shift(token: Token) -> usize {
     match token {
         Token::Dictionary | Token::List | Token::End => 1, // single characters
-        Token::Integer(num) => str_len(num) + 2,           // with 'i' and 'e'
+        Token::Integer(num) => b"i".len() + str_len(num) + b"e".len(),
 
-        // size of string + size of bytes that contains length information + size of ':'
-        Token::ByteString(string) => string.len() + str_len(string.len()) + 1,
+        // size of bytes that contains length information + size of string + size of ":"
+        Token::ByteString(string) => {
+            let size = string.as_bytes().len();
+            str_len(size) + size + b":".len()
+        }
     }
 }
 
@@ -124,13 +127,13 @@ mod tests {
 
     #[test]
     fn test_read_byte_string() {
-        let bytes = "5:abcdefgh".as_bytes();
+        let bytes = b"5:abcdefgh";
         assert_eq!(read_byte_string(bytes), Some(String::from("abcde")));
     }
 
     #[test]
     fn test_tokenize_int() {
-        let bytes = "i1234e".as_bytes();
+        let bytes = b"i1234e";
 
         let left = tokenize(bytes).unwrap();
         let right = Token::Integer(1234);
@@ -140,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_tokenize_byte_string() {
-        let bytes = "6:abcdefgh".as_bytes();
+        let bytes = b"6:abcdefgh";
         let left = tokenize(bytes).unwrap();
         let right = Token::ByteString("abcdef".into());
 
@@ -149,7 +152,7 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        let bytes = "d3:bar4:spam3:fooi42ee".as_bytes();
+        let bytes = b"d3:bar4:spam3:fooi42ee";
         let left = parse(bytes);
         let right = vec![
             Token::Dictionary,
