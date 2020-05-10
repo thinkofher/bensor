@@ -8,7 +8,7 @@ pub fn from_str(data: &str) -> Option<Bencode> {
 }
 
 pub fn from_bytes(data: &[u8]) -> Option<Bencode> {
-    let tokens = lexer::parse(data);
+    let tokens = lexer::parse(data).ok()?;
     parser::parse(tokens)
 }
 
