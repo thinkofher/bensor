@@ -19,8 +19,17 @@ pub enum Token {
 }
 
 impl Token {
-    pub fn shift(self) -> usize {
-        calc_shift(self)
+    fn shift(&self) -> usize {
+        match self {
+            Token::Dictionary | Token::List | Token::End => 1, // single characters
+            Token::Integer(num) => b"i".len() + str_len(num) + b"e".len(),
+
+            // size of bytes that contains length information + size of string + size of ":"
+            Token::ByteString(string) => {
+                let size = string.as_bytes().len();
+                str_len(size) + size + b":".len()
+            }
+        }
     }
 }
 
@@ -35,19 +44,6 @@ pub fn parse(slice: &[u8]) -> Result<Vec<Token>, Error> {
             }
             Err(Error::EmptySlice) => break Ok(ret),
             Err(err) => break Err(err),
-        }
-    }
-}
-
-fn calc_shift(token: Token) -> usize {
-    match token {
-        Token::Dictionary | Token::List | Token::End => 1, // single characters
-        Token::Integer(num) => b"i".len() + str_len(num) + b"e".len(),
-
-        // size of bytes that contains length information + size of string + size of ":"
-        Token::ByteString(string) => {
-            let size = string.as_bytes().len();
-            str_len(size) + size + b":".len()
         }
     }
 }
@@ -116,11 +112,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_calc_shift() {
-        let size = calc_shift(Token::Integer(-666));
+    fn test_token_shift() {
+        let size = Token::Integer(-666).shift();
         assert_eq!(size, 6);
 
-        let size = calc_shift(Token::Integer(666));
+        let size = Token::Integer(666).shift();
         assert_eq!(size, 5);
     }
 
