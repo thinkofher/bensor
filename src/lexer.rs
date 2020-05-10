@@ -18,11 +18,14 @@ pub enum Token {
     End,
 }
 
+const INTEGER_START: &'static [u8] = b"i";
+const INTEGER_END: &'static [u8] = b"e";
+
 impl Token {
     fn shift(&self) -> usize {
         match self {
             Token::Dictionary | Token::List | Token::End => 1, // single characters
-            Token::Integer(num) => b"i".len() + str_len(num) + b"e".len(),
+            Token::Integer(num) => INTEGER_START.len() + str_len(num) + INTEGER_END.len(),
 
             // size of bytes that contains length information + size of string + size of ":"
             Token::ByteString(string) => {
@@ -78,9 +81,11 @@ fn str_len(d: impl std::fmt::Display) -> usize {
     format!("{}", d).chars().count()
 }
 
+const STRING_DELIMETER: &'static [u8] = b":";
+
 fn read_byte_string(slice: &[u8]) -> Result<String, Error> {
     let size = read_len(slice).map_err(|_| Error::ReadByteString)?;
-    let shift = str_len(size) + 1;
+    let shift = str_len(size) + STRING_DELIMETER.len();
     let shifted_slice = &slice[shift..shift + size];
 
     Ok(shifted_slice.into_iter().map(|&c| c as char).collect())
