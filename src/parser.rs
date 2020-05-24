@@ -5,6 +5,22 @@ use crate::lexer::Token;
 use std::collections::HashMap;
 use std::{error, fmt};
 
+/// Bencode is recursive data structure which
+/// works as representation of all possible data
+/// that can be encoded with bencoding.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Bencode {
+    /// an be positive or negative.
+    Integer(i32),
+    /// Fixed-length string of bytes.
+    ByteString(String),
+    /// List of bencoded values.
+    List(Vec<Bencode>),
+    /// Associative array where keys can be only strings
+    /// and values can be any of bencoding data structures.
+    Dictionary(HashMap<String, Bencode>),
+}
+
 /// Represents possible complications that can occur during parsing tokenized data.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
@@ -38,22 +54,6 @@ impl fmt::Display for Error {
             ),
         }
     }
-}
-
-/// Bencode is recursive data structure which
-/// works as representation of all possible data
-/// that can be encoded with bencoding.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Bencode {
-    /// an be positive or negative.
-    Integer(i32),
-    /// Fixed-length string of bytes.
-    ByteString(String),
-    /// List of bencoded values.
-    List(Vec<Bencode>),
-    /// Associative array where keys can be only strings
-    /// and values can be any of bencoding data structures.
-    Dictionary(HashMap<String, Bencode>),
 }
 
 pub(crate) fn parse(tokens: Vec<Token>) -> Result<Bencode, Error> {

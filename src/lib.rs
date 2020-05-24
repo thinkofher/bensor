@@ -106,10 +106,12 @@ mod tests {
         use std::convert::TryInto;
         let left: Bencode = "d3:bar4:spam3:fooi42ee".try_into().unwrap();
 
-        let mut dict = HashMap::new();
-        dict.insert("bar".into(), Bencode::ByteString("spam".into()));
-        dict.insert("foo".into(), Bencode::Integer(42));
-        let right = Bencode::Dictionary(dict);
+        let right = {
+            let mut dict = HashMap::new();
+            dict.insert("bar".into(), Bencode::ByteString("spam".into()));
+            dict.insert("foo".into(), Bencode::Integer(42));
+            Bencode::Dictionary(dict)
+        };
 
         assert_eq!(left, right);
     }
