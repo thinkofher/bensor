@@ -1,5 +1,35 @@
 use crate::lexer::Token;
+
 use std::collections::HashMap;
+use std::{error, fmt};
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Error {
+    NoTokens,
+    InvalidEndToken,
+    NoEndList,
+    InvalidDictionaryKey,
+    NoEndDictionary,
+}
+
+impl error::Error for Error {}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::NoTokens => write!(f, "There are no tokens in the given vector."),
+            Error::InvalidEndToken => write!(f, "Too many end characters in given data."),
+            Error::NoEndList => write!(f, "There is list without end character in given data."),
+            Error::InvalidDictionaryKey => {
+                write!(f, "Dictionaries can only have byte strings as keys.")
+            }
+            Error::NoEndDictionary => write!(
+                f,
+                "There is dictionary without end character in given data."
+            ),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Bencode {
@@ -9,44 +39,50 @@ pub enum Bencode {
     Dictionary(HashMap<String, Bencode>),
 }
 
-pub fn parse(tokens: Vec<Token>) -> Option<Bencode> {
+pub fn parse(tokens: Vec<Token>) -> Result<Bencode, Error> {
     let mut tokens: Vec<Token> = tokens.into_iter().rev().collect();
     match tokens.pop() {
         Some(token) => parse_token(token, &mut tokens),
-        None => None,
+        None => Err(Error::NoTokens),
     }
 }
 
-fn parse_token(t: Token, tokens: &mut Vec<Token>) -> Option<Bencode> {
+fn parse_token(t: Token, tokens: &mut Vec<Token>) -> Result<Bencode, Error> {
     match t {
         Token::Dictionary => parse_dict(tokens, &mut HashMap::new()),
         Token::List => parse_list(tokens, &mut Vec::new()),
-        Token::Integer(val) => Bencode::Integer(val).into(),
-        Token::ByteString(val) => Bencode::ByteString(val).into(),
-        _ => None,
+        Token::Integer(val) => Ok(Bencode::Integer(val)),
+        Token::ByteString(val) => Ok(Bencode::ByteString(val)),
+        Token::End => Err(Error::InvalidEndToken),
     }
 }
 
-fn parse_list(tokens: &mut Vec<Token>, list: &mut Vec<Bencode>) -> Option<Bencode> {
+fn parse_list(tokens: &mut Vec<Token>, list: &mut Vec<Bencode>) -> Result<Bencode, Error> {
     match tokens.pop() {
-        Some(Token::End) => Bencode::List(list.clone()).into(),
+        Some(Token::End) => Ok(Bencode::List(list.clone())),
         Some(token) => {
             list.push(parse_token(token, tokens)?);
             parse_list(tokens, list)
         }
-        None => None,
+        None => Err(Error::NoEndList),
     }
 }
 
-fn parse_dict(tokens: &mut Vec<Token>, dict: &mut HashMap<String, Bencode>) -> Option<Bencode> {
+fn parse_dict(
+    tokens: &mut Vec<Token>,
+    dict: &mut HashMap<String, Bencode>,
+) -> Result<Bencode, Error> {
     match tokens.pop() {
         Some(Token::ByteString(key)) => {
-            let val = parse_token(tokens.pop()?, tokens)?;
+            let val = match tokens.pop() {
+                Some(token) => parse_token(token, tokens)?,
+                None => return Err(Error::NoEndDictionary),
+            };
             dict.insert(key, val);
             parse_dict(tokens, dict)
         }
-        Some(Token::End) => return Bencode::Dictionary(dict.clone()).into(),
-        _ => return None,
+        Some(Token::End) => Ok(Bencode::Dictionary(dict.clone())),
+        _ => Err(Error::InvalidDictionaryKey),
     }
 }
 

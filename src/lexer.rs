@@ -1,12 +1,33 @@
 use std::cmp::PartialEq;
+use std::{error, fmt};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Error {
     ReadInt,
     ReadLen,
     ReadByteString,
-    ReadFirstByte,
+    ReadFirstByte(char),
     EmptySlice,
+}
+
+impl error::Error for Error {}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::ReadInt => write!(f, "Integers can only be composed of numeric characters."),
+            Error::ReadLen => write!(f, "Length can only be composed of numberic characters."),
+            Error::ReadByteString => write!(f, "The data contains a malformed string of bytes."),
+            Error::ReadFirstByte(c) => {
+                let msg = format!(
+                    "Does not recognize the data structure with this beginning: \"{}\".",
+                    c
+                );
+                f.write_str(msg.as_str())
+            }
+            Error::EmptySlice => write!(f, "Given slice is empty."),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -106,7 +127,7 @@ fn tokenize(slice: &[u8]) -> Result<Token, Error> {
             END_BYTE => Ok(Token::End),
             INTEGER_BYTE => read_int(&slice[1..]).map(Token::Integer),
             SLICE_RANGE_START..=SLICE_RANGE_END => read_byte_string(slice).map(Token::ByteString),
-            _ => Err(Error::ReadFirstByte),
+            c => Err(Error::ReadFirstByte(c)),
         },
         None => Err(Error::EmptySlice),
     }

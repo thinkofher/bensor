@@ -1,15 +1,47 @@
 mod lexer;
 mod parser;
 
+use std::{error, fmt};
+
 pub use parser::Bencode;
 
-pub fn from_str(data: &str) -> Option<Bencode> {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Error {
+    Parser(parser::Error),
+    Lexer(lexer::Error),
+}
+
+impl error::Error for Error {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+            Error::Parser(err) => Some(err),
+            Error::Lexer(err) => Some(err),
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::Parser(err) => {
+                write!(f, "Parses Error: ")?;
+                err.fmt(f)
+            }
+            Error::Lexer(err) => {
+                write!(f, "Lexer Error: ")?;
+                err.fmt(f)
+            }
+        }
+    }
+}
+
+pub fn from_str(data: &str) -> Result<Bencode, Error> {
     from_bytes(data.as_bytes())
 }
 
-pub fn from_bytes(data: &[u8]) -> Option<Bencode> {
-    let tokens = lexer::parse(data).ok()?;
-    parser::parse(tokens)
+pub fn from_bytes(data: &[u8]) -> Result<Bencode, Error> {
+    let tokens = lexer::parse(data).map_err(Error::Lexer)?;
+    parser::parse(tokens).map_err(Error::Parser)
 }
 
 #[cfg(test)]
