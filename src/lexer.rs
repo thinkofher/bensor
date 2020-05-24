@@ -1,4 +1,34 @@
 use std::cmp::PartialEq;
+use std::{error, fmt};
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Error {
+    ReadInt,
+    ReadLen,
+    ReadByteString,
+    ReadFirstByte(char),
+    EmptySlice,
+}
+
+impl error::Error for Error {}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::ReadInt => write!(f, "Integers can only be composed of numeric characters."),
+            Error::ReadLen => write!(f, "Length can only be composed of numberic characters."),
+            Error::ReadByteString => write!(f, "The data contains a malformed string of bytes."),
+            Error::ReadFirstByte(c) => {
+                let msg = format!(
+                    "Does not recognize the data structure with this beginning: \"{}\".",
+                    c
+                );
+                f.write_str(msg.as_str())
+            }
+            Error::EmptySlice => write!(f, "Given slice is empty."),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
@@ -9,35 +39,35 @@ pub enum Token {
     End,
 }
 
-impl Token {
-    pub fn shift(self) -> usize {
-        calc_shift(self)
-    }
-}
+const INTEGER_START: &'static [u8] = b"i";
+const INTEGER_END: &'static [u8] = b"e";
 
-pub fn parse(slice: &[u8]) -> Vec<Token> {
-    let mut index = 0;
-    let mut ret = Vec::new();
-    loop {
-        match tokenize(&slice[index..]) {
-            Some(token) => {
-                index += token.clone().shift();
-                ret.push(token);
+impl Token {
+    fn shift(&self) -> usize {
+        match self {
+            Token::Dictionary | Token::List | Token::End => 1, // single characters
+            Token::Integer(num) => INTEGER_START.len() + str_len(num) + INTEGER_END.len(),
+
+            // size of bytes that contains length information + size of string + size of ":"
+            Token::ByteString(string) => {
+                let size = string.as_bytes().len();
+                str_len(size) + size + b":".len()
             }
-            None => break ret,
         }
     }
 }
 
-fn calc_shift(token: Token) -> usize {
-    match token {
-        Token::Dictionary | Token::List | Token::End => 1, // single characters
-        Token::Integer(num) => b"i".len() + str_len(num) + b"e".len(),
-
-        // size of bytes that contains length information + size of string + size of ":"
-        Token::ByteString(string) => {
-            let size = string.as_bytes().len();
-            str_len(size) + size + b":".len()
+pub fn parse(slice: &[u8]) -> Result<Vec<Token>, Error> {
+    let mut index = 0;
+    let mut ret = Vec::new();
+    loop {
+        match tokenize(&slice[index..]) {
+            Ok(token) => {
+                index += token.clone().shift();
+                ret.push(token);
+            }
+            Err(Error::EmptySlice) => break Ok(ret),
+            Err(err) => break Err(err),
         }
     }
 }
@@ -50,35 +80,36 @@ fn read_until(slice: &[u8], end: char) -> Vec<u8> {
         .collect()
 }
 
-fn read_int(slice: &[u8]) -> Result<i32, std::num::ParseIntError> {
+fn read_int(slice: &[u8]) -> Result<i32, Error> {
     read_until(slice, 'e')
         .into_iter()
         .map(|c| c as char)
         .collect::<String>()
         .parse()
+        .map_err(|_| Error::ReadInt)
 }
 
-fn read_len(slice: &[u8]) -> Result<usize, std::num::ParseIntError> {
+fn read_len(slice: &[u8]) -> Result<usize, Error> {
     read_until(slice, ':')
         .into_iter()
         .map(|c| c as char)
         .collect::<String>()
         .parse()
+        .map_err(|_| Error::ReadLen)
 }
 
 fn str_len(d: impl std::fmt::Display) -> usize {
     format!("{}", d).chars().count()
 }
 
-fn read_byte_string(slice: &[u8]) -> Option<String> {
-    let size = match read_len(slice) {
-        Ok(size) => size,
-        Err(_) => return None,
-    };
-    let shift = str_len(size) + 1;
+const STRING_DELIMETER: &'static [u8] = b":";
+
+fn read_byte_string(slice: &[u8]) -> Result<String, Error> {
+    let size = read_len(slice).map_err(|_| Error::ReadByteString)?;
+    let shift = str_len(size) + STRING_DELIMETER.len();
     let shifted_slice = &slice[shift..shift + size];
 
-    Some(shifted_slice.into_iter().map(|&c| c as char).collect())
+    Ok(shifted_slice.into_iter().map(|&c| c as char).collect())
 }
 
 const DICTIONARY_BYTE: char = 'd';
@@ -88,20 +119,17 @@ const INTEGER_BYTE: char = 'i';
 const SLICE_RANGE_START: char = '0';
 const SLICE_RANGE_END: char = '9';
 
-fn tokenize(slice: &[u8]) -> Option<Token> {
+fn tokenize(slice: &[u8]) -> Result<Token, Error> {
     match slice.first() {
         Some(byte) => match *byte as char {
-            DICTIONARY_BYTE => Token::Dictionary.into(),
-            LIST_BYTE => Token::List.into(),
-            END_BYTE => Token::End.into(),
-            INTEGER_BYTE => match read_int(&slice[1..]) {
-                Ok(num) => Token::Integer(num).into(),
-                _ => None,
-            },
+            DICTIONARY_BYTE => Ok(Token::Dictionary),
+            LIST_BYTE => Ok(Token::List),
+            END_BYTE => Ok(Token::End),
+            INTEGER_BYTE => read_int(&slice[1..]).map(Token::Integer),
             SLICE_RANGE_START..=SLICE_RANGE_END => read_byte_string(slice).map(Token::ByteString),
-            _ => None,
+            c => Err(Error::ReadFirstByte(c)),
         },
-        None => None,
+        None => Err(Error::EmptySlice),
     }
 }
 
@@ -110,11 +138,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_calc_shift() {
-        let size = calc_shift(Token::Integer(-666));
+    fn test_token_shift() {
+        let size = Token::Integer(-666).shift();
         assert_eq!(size, 6);
 
-        let size = calc_shift(Token::Integer(666));
+        let size = Token::Integer(666).shift();
         assert_eq!(size, 5);
     }
 
@@ -128,7 +156,7 @@ mod tests {
     #[test]
     fn test_read_byte_string() {
         let bytes = b"5:abcdefgh";
-        assert_eq!(read_byte_string(bytes), Some(String::from("abcde")));
+        assert_eq!(read_byte_string(bytes), Ok(String::from("abcde")));
     }
 
     #[test]
@@ -153,7 +181,7 @@ mod tests {
     #[test]
     fn test_parse() {
         let bytes = b"d3:bar4:spam3:fooi42ee";
-        let left = parse(bytes);
+        let left = parse(bytes).unwrap();
         let right = vec![
             Token::Dictionary,
             Token::ByteString("bar".into()),
