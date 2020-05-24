@@ -1,6 +1,6 @@
 //! Bensor is a simple and minimal library for parsing [bencode](https://en.wikipedia.org/wiki/Bencode)
 //! encoding, written in pure Rust with zero dependencies. Bensor provides high level API to
-//! use with TryInto and TryFrom traits from Rust standard library.
+//! use with [`TryInto`] and [`TryFrom`] traits from Rust standard library.
 //!
 //! # Examples
 //!
@@ -30,9 +30,10 @@
 //! };
 //! assert_eq!(left, right)
 //! ```
-
-mod lexer;
-mod parser;
+//! [`TryFrom`]: https://doc.rust-lang.org/std/convert/trait.TryFrom.html
+//! [`TryInto`]: https://doc.rust-lang.org/std/convert/trait.TryInto.html
+pub mod lexer;
+pub mod parser;
 
 use std::convert::TryFrom;
 use std::{error, fmt};

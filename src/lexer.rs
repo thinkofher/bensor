@@ -1,12 +1,20 @@
+//! Lexer module contains data structures and procedures
+//! related to parsing raw input into tokens.
 use std::cmp::PartialEq;
 use std::{error, fmt};
 
+/// Represents possible complications that can occur during parsing raw data.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
+    /// Non-numeric character provided between `i` and `e` tokens.
     ReadInt,
+    /// Non numeric character provided as length of list.
     ReadLen,
+    /// Parsing string of bytes failed.
     ReadByteString,
+    /// Given characer cannot be a token.
     ReadFirstByte(char),
+    /// Empty slice provided.
     EmptySlice,
 }
 
@@ -31,7 +39,7 @@ impl fmt::Display for Error {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Token {
+pub(crate) enum Token {
     Dictionary,
     List,
     Integer(i32),
@@ -57,7 +65,7 @@ impl Token {
     }
 }
 
-pub fn parse(slice: &[u8]) -> Result<Vec<Token>, Error> {
+pub(crate) fn parse(slice: &[u8]) -> Result<Vec<Token>, Error> {
     let mut index = 0;
     let mut ret = Vec::new();
     loop {

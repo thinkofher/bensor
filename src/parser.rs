@@ -1,14 +1,23 @@
+//! Parses module contains data structures and procedures
+//! related to parsing tokenized input.
 use crate::lexer::Token;
 
 use std::collections::HashMap;
 use std::{error, fmt};
 
+/// Represents possible complications that can occur during parsing tokenized data.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
+    /// Empty token container provided.
     NoTokens,
+    /// There is end token without need.
     InvalidEndToken,
+    /// There is the list without explicit end token.
     NoEndList,
+    /// There is a attempt to use type other than ByteString
+    /// as key in the dictionary.
     InvalidDictionaryKey,
+    /// There is the dictionary without explicit end token.
     NoEndDictionary,
 }
 
@@ -31,15 +40,23 @@ impl fmt::Display for Error {
     }
 }
 
+/// Bencode is recursive data structure which
+/// works as representation of all possible data
+/// that can be encoded with bencoding.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Bencode {
+    /// an be positive or negative.
     Integer(i32),
+    /// Fixed-length string of bytes.
     ByteString(String),
+    /// List of bencoded values.
     List(Vec<Bencode>),
+    /// Associative array where keys can be only strings
+    /// and values can be any of bencoding data structures.
     Dictionary(HashMap<String, Bencode>),
 }
 
-pub fn parse(tokens: Vec<Token>) -> Result<Bencode, Error> {
+pub(crate) fn parse(tokens: Vec<Token>) -> Result<Bencode, Error> {
     let mut tokens: Vec<Token> = tokens.into_iter().rev().collect();
     match tokens.pop() {
         Some(token) => parse_token(token, &mut tokens),
