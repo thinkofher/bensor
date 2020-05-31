@@ -21,6 +21,94 @@ pub enum Bencode {
     Dictionary(HashMap<String, Bencode>),
 }
 
+impl Bencode {
+
+    /// Transforms `Bencode` into owned vector of bencoded bytes.
+    ///
+    /// # Examples
+    ///
+    /// Serialization of bencode integer.
+    ///
+    /// ```
+    /// use bensor::Bencode;
+    ///
+    /// let left = Bencode::Integer(2015).into_bytes();
+    /// let right = b"i2015e".to_vec();
+    ///
+    /// assert_eq!(left, right);
+    /// ```
+    ///
+    /// Serialization of bencode dictionary.
+    ///
+    /// ```
+    /// use bensor::Bencode;
+    /// use std::collections::HashMap;
+    ///
+    /// let left = {
+    ///     let mut d = HashMap::new();
+    ///     d.insert("one".into(), Bencode::Integer(1));
+    ///     d.insert("two".into(), Bencode::Integer(2));
+    ///     Bencode::Dictionary(d).into_bytes()
+    /// };
+    /// let right = b"d3:onei1e3:twoi2ee".to_vec();
+    /// assert_eq!(left, right);
+    /// ```
+    pub fn into_bytes(self) -> Vec<u8> {
+        match self {
+            Bencode::Integer(n) => {
+                let res = format!("i{}e", n);
+                res.into_bytes()
+            }
+            Bencode::ByteString(s) => {
+                let mut res = Vec::new();
+
+                let mut string = s.into_bytes();
+                let mut head = {
+                    let s = format!("{}:", string.len());
+                    s.into_bytes()
+                };
+
+                res.append(&mut head);
+                res.append(&mut string);
+                res
+            }
+            Bencode::List(vec) => {
+                let mut res = Vec::new();
+                res.push('l' as u8);
+                vec.into_iter()
+                    .map(|elem| elem.into_bytes())
+                    .for_each(|elem| res.extend_from_slice(&elem));
+                res.push('e' as u8);
+                res
+            }
+            Bencode::Dictionary(map) => {
+                let mut res = Vec::new();
+                res.push('d' as u8);
+
+                let sorted_map = {
+                    let mut sorted_map = map.into_iter().collect::<Vec<(String, Bencode)>>();
+                    sorted_map
+                        .sort_by(|(first_key, _), (second_key, _)| first_key.cmp(&second_key));
+                    sorted_map
+                };
+                sorted_map.into_iter().for_each(|(key, value)| {
+                    let mut key_bytes = key.clone().into_bytes();
+                    let mut head = {
+                        let s = format!("{}:", key_bytes.len());
+                        s.into_bytes()
+                    };
+                    res.append(&mut head);
+                    res.append(&mut key_bytes);
+                    res.append(&mut value.into_bytes());
+                });
+
+                res.push('e' as u8);
+                res
+            }
+        }
+    }
+}
+
 /// Represents possible complications that can occur during parsing tokenized data.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
@@ -192,6 +280,74 @@ mod tests {
         };
 
         let right = Bencode::Dictionary(dict);
+        assert_eq!(left, right);
+    }
+
+    #[test]
+    fn test_list_into_bytes() {
+        let left = {
+            let mut v = Vec::new();
+            v.push(Bencode::Integer(2137));
+            v.push(Bencode::ByteString("Hello World!".into()));
+            v.push(Bencode::Integer(2020));
+            Bencode::List(v)
+        }
+        .into_bytes();
+
+        let right = b"li2137e12:Hello World!i2020ee".to_vec();
+        assert_eq!(left, right);
+    }
+
+    #[test]
+    fn test_dict_into_bytes() {
+        let left = {
+            let mut h = HashMap::new();
+            h.insert("current_year".into(), Bencode::Integer(2020));
+            h.insert("power_level".into(), Bencode::Integer(9001));
+            h.insert(
+                "some_random_bytes".into(),
+                Bencode::ByteString("welcome_my_dear_bytes".into()),
+            );
+            h.insert(
+                "integer_list".into(),
+                Bencode::List(vec![
+                    Bencode::Integer(5),
+                    Bencode::Integer(10),
+                    Bencode::Integer(100),
+                ]),
+            );
+            Bencode::Dictionary(h)
+        }
+        .into_bytes();
+
+        let right = b"d12:current_yeari2020e12:integer_listli5ei10ei100ee11:power_leveli9001e17:some_random_bytes21:welcome_my_dear_bytese".to_vec();
+        assert_eq!(left, right);
+    }
+
+    #[test]
+    fn test_nested_dict_into_bytes() {
+        let left = {
+            let mut h = HashMap::new();
+            let nested_dict = {
+                let mut h = HashMap::new();
+                h.insert("abc".into(), Bencode::Integer(123));
+                h.insert("def".into(), Bencode::Integer(456));
+                h
+            };
+            h.insert("nested".into(), Bencode::Dictionary(nested_dict));
+            h.insert(
+                "list".into(),
+                Bencode::List(vec![
+                    Bencode::Integer(1),
+                    Bencode::Integer(2),
+                    Bencode::Integer(1000),
+                ]),
+            );
+            Bencode::Dictionary(h)
+        }
+        .into_bytes();
+
+        let right = b"d4:listli1ei2ei1000ee6:nestedd3:abci123e3:defi456eee".to_vec();
         assert_eq!(left, right);
     }
 }
