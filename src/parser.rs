@@ -11,7 +11,7 @@ use std::{error, fmt};
 #[derive(Debug, Clone, PartialEq)]
 pub enum Bencode {
     /// an be positive or negative.
-    Integer(i32),
+    Integer(i64),
     /// Fixed-length string of bytes.
     ByteString(String),
     /// List of bencoded values.
@@ -22,7 +22,6 @@ pub enum Bencode {
 }
 
 impl Bencode {
-
     /// Transforms `Bencode` into owned vector of bencoded bytes.
     ///
     /// # Examples

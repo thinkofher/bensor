@@ -42,7 +42,7 @@ impl fmt::Display for Error {
 pub(crate) enum Token {
     Dictionary,
     List,
-    Integer(i32),
+    Integer(i64),
     ByteString(String),
     End,
 }
@@ -92,7 +92,7 @@ fn read_until(slice: &[u8], end: char) -> Vec<u8> {
 }
 
 /// Parses given slice of bytes into integer.
-fn read_int(slice: &[u8]) -> Result<i32, Error> {
+fn read_int(slice: &[u8]) -> Result<i64, Error> {
     read_until(slice, 'e')
         .into_iter()
         .map(|c| c as char)
